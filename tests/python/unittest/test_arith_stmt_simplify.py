@@ -14,15 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
-"""Checks different x86 targets for target specific schedules"""
+import tvm
 
-def check_skylake(target):
-    """
-    Checks if the target is skylake
-    """
+def test_stmt_simplify():
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    C = ib.pointer("float32", name="C")
+    n = tvm.var("n")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.if_scope(i < 12):
+            A[i] = C[i]
 
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            return True
-    return False
+    body = tvm.stmt.LetStmt(n, 10, ib.get())
+    body = tvm.ir_pass.CanonicalSimplify(body)
+    assert isinstance(body.body, tvm.stmt.Store)
+
+
+if __name__ == "__main__":
+    test_stmt_simplify()

@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-PROJROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../" && pwd )"
 
-
-export PYTHONPATH=${PYTHONPATH}:${PROJROOT}/python:${PROJROOT}/vta/python
-export PYTHONPATH=${PYTHONPATH}:/home/xilinx/pynq
-python3 -m vta.exec.rpc_server --tracker fleet:9190 --key pynq
+if(USE_MICRO)
+  message(STATUS "Build with Micro support")
+  file(GLOB RUNTIME_MICRO_SRCS src/runtime/micro/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_MICRO_SRCS})
+endif(USE_MICRO)
