@@ -922,9 +922,9 @@ def _test_unstack(ip_shape, axis, dtype):
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    tf.unstack(in_data, axis=axis)
+    unstack = tf.unstack(in_data, axis=axis)
 
-    compare_tf_with_tvm([np_data], ['in_data:0'], [f'unstack:{n}' for n in range(ip_shape[axis])])
+    compare_tf_with_tvm([np_data], ['in_data:0'], [n.name for n in unstack])
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
@@ -1869,6 +1869,30 @@ def test_forward_log():
     tf.log(in_data, name="log")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
 
+def test_forward_log1p():
+    """test operator Log1p """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.log1p(in_data, name="log1p")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'log1p:0')
+
+def test_forward_cos():
+    """test operator cos """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.cos(in_data, name="cos")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
+
+def test_forward_sin():
+    """test operator sin """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.sin(in_data, name="sin")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sin:0')
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
@@ -2159,6 +2183,9 @@ if __name__ == '__main__':
     test_forward_pow_exp()
     test_forward_sign()
     test_forward_log()
+    test_forward_log1p()
+    test_forward_cos()
+    test_forward_sin()
     test_forward_negative()
     test_forward_divide()
     test_forward_abs()

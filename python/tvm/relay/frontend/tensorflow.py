@@ -130,7 +130,7 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise tvm.error.OpAttributeUnimplemented(
+                raise tvm.error.OpAttributeUnImplemented(
                     'Attribute {} in operator {} is not supported.'.format(k, op_name))
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
@@ -517,7 +517,7 @@ def _crop_and_resize():
         attrs['size'] = crop_size
         attrs['layout'] = 'NHWC'
         if method.lower() == 'nearest':
-            raise tvm.error.OpAttributeUnimplemented(
+            raise tvm.error.OpAttributeUnImplemented(
                 'Attribute method=nearest is not supported')
         else:
             attrs['align_corners'] = True
@@ -1301,6 +1301,13 @@ def _prod():
         return _op.prod(inputs[0], int(axis), keepdims=keepdims)
     return _impl
 
+def _log1p():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/log1p
+    def _impl(inputs, attr, params):
+        one = tvm.relay.const(1, attr['T'].name)
+        add_out = _get_relay_op('add')(inputs[0], one)
+        return _get_relay_op('log')(add_out)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1354,6 +1361,9 @@ _convert_map = {
     'Less'                              : _broadcast('less'),
     'LessEqual'                         : _broadcast('less_equal'),
     'Log'                               : AttrCvt('log'),
+    'Log1p'                             : _log1p(),
+    'Cos'                               : AttrCvt('cos'),
+    'Sin'                               : AttrCvt('sin'),
     'LogicalAnd'                        : _logical('logical_and'),
     'LogicalOr'                         : _logical('logical_or'),
     'LogicalNot'                        : _logical('logical_not'),
