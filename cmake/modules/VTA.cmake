@@ -42,6 +42,7 @@ elseif(PYTHON)
     # Add fsim driver sources
     file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/vmem/virtual_memory.cc vta/src/vmem/virtual_memory.h)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
     target_include_directories(vta_fsim PUBLIC vta/include)
@@ -61,6 +62,7 @@ elseif(PYTHON)
     file(GLOB TSIM_RUNTIME_SRCS vta/src/*.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/tsim/tsim_driver.cc)
     list(APPEND TSIM_RUNTIME_SRCS vta/src/dpi/module.cc)
+    list(APPEND TSIM_RUNTIME_SRCS vta/src/vmem/virtual_memory.cc vta/src/vmem/virtual_memory.h)
     # Target lib: vta_tsim
     add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
     target_include_directories(vta_tsim PUBLIC vta/include)
@@ -69,8 +71,6 @@ elseif(PYTHON)
       target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
     endforeach()
     include_directories("vta/include")
-    # Set USE_TSIM macro
-    target_compile_definitions(vta_tsim PUBLIC USE_TSIM)
     if(APPLE)
       set_target_properties(vta_tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
     endif(APPLE)
@@ -82,7 +82,7 @@ elseif(PYTHON)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      file(GLOB FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
+      list(APPEND FPGA_RUNTIME_SRCS vta/src/pynq/pynq_driver.cc)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})

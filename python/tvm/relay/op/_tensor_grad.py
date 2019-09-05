@@ -17,12 +17,25 @@
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
-from ..expr import const, Tuple, TupleGetItem
-from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where
-from .tensor import exp, negative, power, less, cos, sin
-from .tensor import zeros_like, ones_like
+
+from topi.nn.util import get_pad_tuple
+from topi.util import get_const_tuple
+
+from ..expr import Tuple, TupleGetItem, const
 from . import nn as _nn
+from .op import register_gradient
+from .reduce import sum as _sum
+from .tensor import cos, exp, less, negative, ones_like, power, sin, zeros_like
+from .transform import (
+    broadcast_to_like,
+    collapse_sum_like,
+    reshape,
+    reshape_like,
+    strided_slice,
+    tile,
+    transpose,
+    where,
+)
 
 
 @register_gradient("log")
@@ -187,3 +200,118 @@ def concatenate_grad(orig, grad):
     # Assume only two element in tuple rn.
     # In the real implementation, concatenate_grad probably need to be implemented by an operator.
     return [Tuple([zeros_like(x), zeros_like(y)])]
+
+@register_gradient("nn.conv2d")
+def conv2d_grad(orig, grad):
+    """Gradient of conv2d"""
+    attrs = orig.attrs
+    data, weight = orig.args
+    data_shape = get_const_tuple(data.checked_type.shape)
+    weight_shape = get_const_tuple(weight.checked_type.shape)
+    _, _, grad_h, grad_w = get_const_tuple(orig.checked_type.shape)
+    batch, in_channel, in_h, in_w = data_shape
+    out_channel, _, filter_h, filter_w = weight_shape
+
+    # infer output_padding
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(get_const_tuple(attrs.padding),
+                                                                 (filter_h, filter_w))
+    stride_h, stride_w = get_const_tuple(attrs.strides)
+    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+    out_h = (grad_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
+    out_w = (grad_w - 1) * stride_w - fpad_left - fpad_right + filter_w
+    output_padding = (in_h - out_h, in_w - out_w)
+
+    assert attrs.data_layout == 'NCHW', 'only support NCHW data layout'
+    assert attrs.kernel_layout == 'OIHW', 'only support OIHW kernel layout'
+    assert attrs.out_layout in ['', 'NCHW'], 'only support NCHW output layout'
+
+
+    backward_data = _nn.conv2d_transpose(grad, weight,
+                                         strides=attrs.strides,
+                                         padding=attrs.padding,
+                                         dilation=attrs.dilation,
+                                         groups=attrs.groups,
+                                         output_padding=output_padding)
+    grad = tile(grad, [1, in_channel // attrs.groups, 1, 1])
+    grad = reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
+    data = reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
+
+    backward_weight = _nn.conv2d(data, grad,
+                                 strides=attrs.dilation,
+                                 padding=attrs.padding,
+                                 dilation=attrs.strides,
+                                 groups=in_channel * batch)
+    # infer shape of backward_weight
+    padded_weight_grad_h = (in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom) \
+                           // dilation_h + 1
+    padded_weight_grad_w = (in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right) \
+                           // dilation_w + 1
+    backward_weight = reshape(backward_weight,
+                              [batch, in_channel // attrs.groups, out_channel,
+                               padded_weight_grad_h, padded_weight_grad_w])
+    backward_weight = _sum(backward_weight, axis=0)
+    backward_weight = transpose(backward_weight, [1, 0, 2, 3])
+
+    assert padded_weight_grad_h >= filter_h
+    assert padded_weight_grad_w >= filter_w
+    if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
+        backward_weight = strided_slice(backward_weight, begin=[0, 0, 0, 0],
+                                        end=[None, None, filter_h, filter_w])
+
+    return [backward_data, backward_weight]
+
+
+@register_gradient("nn.softmax")
+def softmax_grad(orig, grad):
+    """Gradient of softmax"""
+    return [(grad - _sum(grad * orig, orig.attrs.axis, True)) * orig]
+
+
+@register_gradient("nn.bias_add")
+def bias_grad(orig, grad):
+    """Returns grad"""
+    data, bias = orig.args
+    return [collapse_sum_like(grad, data),
+            collapse_sum_like(grad, bias)]
+
+
+@register_gradient("nn.dense")
+def dense_grad(orig, grad):
+    """Returns [grad' @ weight, data @ grad']"""
+    data, weight = orig.args
+    return [collapse_sum_like(transpose(grad) * weight, data),
+            collapse_sum_like(data * transpose(grad), weight)]
+
+
+@register_gradient("nn.batch_flatten")
+def batch_flatten_grad(orig, grad):
+    """Returns grad reshaped to data dims"""
+    data = orig.args[0]
+    return [reshape_like(grad, data)]
+
+
+@register_gradient("transpose")
+def transpose_grad(orig, grad):
+    """Returns grad transposed over the complement of original transpose axes"""
+    orig_axes = orig.attrs.axes
+    if orig_axes:
+        dims = len(orig_axes)
+        new_axes = [0] * dims
+        for i in range(dims):
+            new_axes[int(orig_axes[i])] = i
+    else:
+        new_axes = None
+    return [transpose(grad, axes=new_axes)]
+
+
+@register_gradient("negative")
+def negative_grad(orig, grad):
+    """Returns -grad"""
+    return [-grad]
+
+
+@register_gradient("sum")
+def sum_grad(orig, grad):
+    """Returns grad broadcasted to data dims"""
+    data = orig.args[0]
+    return [broadcast_to_like(grad, data)]
