@@ -395,16 +395,17 @@ def _convert_pooling(inexpr, keras_layer, etab):
 def _convert_upsample(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
-    params = {'layout': 'NHWC'}
+    params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params['scale'] = h
+        params['scale_h'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
@@ -418,7 +419,8 @@ def _convert_upsample(inexpr, keras_layer, _):
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
@@ -458,6 +460,11 @@ def _convert_batchnorm(inexpr, keras_layer, etab):
     moving_var = keras_layer.get_weights()[idx + 1]
     params['moving_mean'] = etab.new_const(moving_mean)
     params['moving_var'] = etab.new_const(moving_var)
+    # in case beta or gamma is not defined
+    params['beta'] = etab.new_const(np.zeros(moving_mean.shape)) if \
+                     'beta' not in params else params['beta']
+    params['gamma'] = etab.new_const(np.ones(moving_mean.shape)) if \
+                      'gamma' not in params else params['gamma']
     result, moving_mean, moving_var = _op.nn.batch_norm(inexpr, **params)
     return result
 

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_default.cc
  * \brief Default intrinsic rules.
  */
@@ -44,6 +43,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sin")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")

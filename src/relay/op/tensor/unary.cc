@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file unary.cc
  * \brief Unary operators.
  */
@@ -73,6 +72,17 @@ RELAY_REGISTER_UNARY_OP("sin")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sin));
+
+
+RELAY_REGISTER_UNARY_OP("atan")
+.describe(R"code(Returns the atan of input array, computed element-wise.
+
+.. math::
+   Y = atan(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::atan));
 
 
 RELAY_REGISTER_UNARY_OP("exp")
@@ -166,7 +176,7 @@ This function takes a tensor, a minimum value `a_min`, and a maximum value `a_ma
 .set_attr<TOpPattern>("TOpPattern", kElemWise)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-.set_attrs_type_key("relay.attrs.ClipAttrs")
+.set_attrs_type<ClipAttrs>()
 .set_support_level(3);
 
 
@@ -275,8 +285,8 @@ bool ShapeOfRel(const Array<Type>& types,
   CHECK(tt != nullptr);
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
-  auto vector_out = tvm::Integer(tt->shape.size());
-  reporter->Assign(types[1], TensorTypeNode::make({ vector_out }, param->dtype));
+  auto rank_shape = RankShape(tt->shape);
+  reporter->Assign(types[1], TensorTypeNode::make(rank_shape, param->dtype));
   return true;
 }
 
@@ -303,7 +313,7 @@ RELAY_REGISTER_OP("shape_of")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ShapeOfAttrs")
+.set_attrs_type<ShapeOfAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("ShapeOf", ShapeOfRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -354,7 +364,7 @@ RELAY_REGISTER_OP("contrib.ndarray_size")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.NdarraySizeAttrs")
+.set_attrs_type<NdarraySizeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("NdarraySize", NdarraySizeRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)

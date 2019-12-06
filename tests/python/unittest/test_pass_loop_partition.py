@@ -162,7 +162,7 @@ def test_condition():
     ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
-    with ib.for_range(0, ((n+3)/4), 'i') as i:
+    with ib.for_range(0, tvm.truncdiv(n+3,4), 'i') as i:
       with ib.for_range(0, 4, 'j') as j:
         ib.emit(tvm.make.Evaluate(
           tvm.make.Select(ib.likely(i*4+j<n), m, n)))
@@ -206,7 +206,7 @@ def test_everything_during_deduction():
     ib = tvm.ir_builder.create()
     with ib.for_range(0, n, 'i') as i:
         with ib.for_range(0, 32, 'j') as j:
-            with ib.if_scope(ib.likely(i/j < m)):
+            with ib.if_scope(ib.likely(tvm.truncdiv(i,j) < m)):
                 # this guard will produce everything during deduction
                 ib.emit(tvm.make.Evaluate(m))
     stmt = ib.get()
@@ -365,6 +365,27 @@ def test_conv_tiling():
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
+
+def test_multilevel_splitting_with_indivisble_factors():
+    import topi
+    A = tvm.placeholder((130,), dtype="float32")
+    B = topi.nn.relu(A)
+    s = tvm.create_schedule(B.op)
+    (y,) = s[B].op.axis
+    (yo, yi) = s[B].split(y, factor=8)
+    (yoo, yoi) = s[B].split(yo, factor=16)
+    s[B].reorder(yoo, yoi, yi)
+    s[B].unroll(yi)
+
+    ## But this does the right thing.
+    with tvm.build_config(partition_const_loop=True):
+        lowered_body = tvm.lower(s, [A, B]).body
+        def visit_stmt(op):
+            return(isinstance(op, tvm.expr.Max))
+        num_max = collect_visit(lowered_body, visit_stmt)
+        assert num_max.count(True) == 10
+
+
 def test_double_splitting_with_indivisible_factors():
     m = 48
     dtype="float32"
@@ -443,4 +464,5 @@ if __name__ == "__main__":
     test_cce_loop_3()
     test_conv_tiling()
     test_double_splitting_with_indivisible_factors()
+    test_multilevel_splitting_with_indivisble_factors()
     test_simple_rfactor()

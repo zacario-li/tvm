@@ -226,7 +226,8 @@ class SplitSpace(TransformSpace):
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
         if now == self.num_output - 1:
-            if not enforce_no_tail or self.product % np.prod(tmp_stack, dtype=np.int64) == 0:
+            prod = np.prod(tmp_stack, dtype=np.int64)
+            if self.product % prod == 0 or (not enforce_no_tail and prod < self.product):
                 self.entities.append(SplitEntity([-1] + tmp_stack[::-1]))
         else:
             for factor in self.factors:
@@ -1003,6 +1004,9 @@ class FallbackConfigEntity(ConfigSpace):
         We use tuned parameters from TopHub as reference data.
         For an unseen shape, we find the most similar tuned one from TopHub and
         mimic its parameters.
+        Note that we are not matching by workload (e.g., input size, kernel size),
+        but instead matching by configuration space. The idea is that if two workloads have
+        similar configuration space, their optimal configurations are also likely to be similar.
 
         Parameters
         ----------

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relay
@@ -61,7 +62,8 @@ def test_unary_op():
                         (tvm.relay.abs, lambda x: np.where(x < 0, -np.ones_like(x), np.ones_like(x))),
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
-                        (tvm.relay.sin, lambda x: np.cos(x))]:
+                        (tvm.relay.sin, lambda x: np.cos(x)),
+                        (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0)))]:
         check_single_op(opfunc, ref)
 
 
@@ -99,7 +101,13 @@ def test_binary_op():
 def test_softmax_grad():
     data = relay.var("data", relay.TensorType((1, 16), "float64"))
     fwd_func = relay.Function([data], relay.nn.softmax(data))
-    check_grad(fwd_func)
+    check_grad(fwd_func, scale=1)
+
+
+def test_log_softmax_grad():
+    data = relay.var("data", relay.TensorType((2, 16), "float64"))
+    fwd_func = relay.Function([data], relay.nn.log_softmax(data))
+    check_grad(fwd_func, scale=1)
 
 
 def test_bias_add_grad():
@@ -110,6 +118,4 @@ def test_bias_add_grad():
 
 
 if __name__ == "__main__":
-    test_unary_op()
-    test_binary_op()
-    test_bias_add_grad()
+    pytest.main([__file__])
